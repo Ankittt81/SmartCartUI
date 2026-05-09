@@ -8,10 +8,11 @@ import AuthPage from "./pages/AuthPage";
 import OrdersPage from "./pages/OrdersPage";
 import PaymentPage from "./pages/PaymentPage";
 import ProfilePage from "./pages/ProfilePage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import AddressesPage from "./pages/AddressesPage";
 
 function App() {
     return (
-        <BrowserRouter>
 
             <Layout>
                 <Routes>
@@ -23,10 +24,11 @@ function App() {
                     <Route path="/orders" element={<OrdersPage />} />
                     <Route path="/payment/:orderId" element={<PaymentPage />} />
                     <Route path="/profile" element={<ProfilePage />} />
+                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                    <Route path="/addresses" element={<AddressesPage />}/>
                 </Routes>
             </Layout>
 
-        </BrowserRouter>
     );
 }
 
