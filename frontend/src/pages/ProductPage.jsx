@@ -1,176 +1,527 @@
-import { useState } from "react";
-import { sampleProducts } from "../assets/SampleProduct.js";
+import { useEffect, useState } from "react";
+
 import { useNavigate } from "react-router-dom";
 
+import {
+    getCategoryTree
+} from "../services/categoryService";
+
+import {
+    getAllProducts,
+    getProductsByCategory
+} from "../services/productService";
+
 function ProductPage() {
+
+    // =====================================================
+    // NAVIGATION
+    // =====================================================
+
     const navigate = useNavigate();
-    // 🔥 Products
-    const [products] = useState(sampleProducts);
 
-    // 🔥 Hierarchical Categories
-    const [categories] = useState([
-        {
-            id: 1,
-            title: "Electronics",
-            children: [
-                { id: 2, title: "Laptops" },
-                { id: 3, title: "Mobiles" }
-            ]
-        },
-        {
-            id: 4,
-            title: "Furniture",
-            children: [
-                { id: 5, title: "Chairs" },
-                { id: 6, title: "Tables" }
-            ]
+
+
+    // =====================================================
+    // STATE
+    // =====================================================
+
+    const [categories, setCategories] = useState([]);
+
+    const [products, setProducts] = useState([]);
+
+    const [loading, setLoading] = useState(true);
+
+    const [expandedCategories, setExpandedCategories] =
+        useState({});
+
+    const [selectedCategoryId, setSelectedCategoryId] =
+        useState(null);
+
+
+
+    // =====================================================
+    // INITIAL LOAD
+    // =====================================================
+
+    useEffect(() => {
+
+        fetchInitialData();
+
+    }, []);
+
+    const fetchInitialData = async () => {
+
+        try {
+            console.log("START FETCH");
+            const [
+
+                categoryTree,
+
+                allProducts
+
+            ] = await Promise.all([
+
+                getCategoryTree(),
+
+                getAllProducts()
+            ]);
+            console.log(categoryTree);
+
+            console.log(allProducts);
+
+
+
+            setCategories(categoryTree || []);
+
+            setProducts(allProducts || []);
+            console.log(allProducts);
+
+        } catch (err) {
+
+            console.error(
+                "FETCH INITIAL DATA ERROR",
+                err
+            );
+
+            if (err.response) {
+
+                console.log(
+                    err.response.data
+                );
+            }
+
+            setProducts([]);
+
+        }finally {
+
+            setLoading(false);
         }
-    ]);
+    };
 
-    const [selectedCategory, setSelectedCategory] = useState(null);
-    const [expanded, setExpanded] = useState({});
 
-    // 🔥 Expand / Collapse
-    const toggleExpand = (id) => {
-        setExpanded({
-            ...expanded,
-            [id]: !expanded[id]
+
+    // =====================================================
+    // CATEGORY CLICK
+    // =====================================================
+
+    const handleCategoryClick =
+        async (categoryId) => {
+
+            try {
+
+                setSelectedCategoryId(categoryId);
+
+
+
+                const data =
+                    await getProductsByCategory(
+                        categoryId
+                    );
+
+
+
+                setProducts(data || []);
+
+            } catch (err) {
+
+                console.error(err);
+
+                setProducts([]);
+            }
+        };
+
+
+
+    // =====================================================
+    // TOGGLE CATEGORY
+    // =====================================================
+
+    const toggleCategory =
+        (categoryId) => {
+
+            setExpandedCategories(prev => ({
+
+                ...prev,
+
+                [categoryId]:
+                    !prev[categoryId]
+            }));
+        };
+
+
+
+    // =====================================================
+    // CATEGORY TREE
+    // =====================================================
+
+    const renderCategoryTree = (
+
+        categories,
+
+        level = 0
+
+    ) => {
+
+        return categories?.map(category => {
+
+            const isExpanded =
+                expandedCategories[
+                    category.categoryId
+                    ];
+
+
+
+            const hasChildren =
+                category.children &&
+                category.children.length > 0;
+
+
+
+            const isSelected =
+                selectedCategoryId ===
+                category.categoryId;
+
+
+
+            return (
+
+                <div
+                    key={category.categoryId}
+                >
+
+                    {/* CATEGORY ROW */}
+
+                    <div
+                        className={`flex items-center justify-between rounded-xl px-4 py-3 cursor-pointer transition mb-1 ${
+                            isSelected
+
+                                ? "bg-black text-white"
+
+                                : "hover:bg-gray-100"
+                        }`}
+                        style={{
+                            marginLeft:
+                                `${level * 16}px`
+                        }}
+                    >
+
+                        {/* CATEGORY NAME */}
+
+                        <div
+                            className="flex-1"
+                            onClick={() =>
+                                handleCategoryClick(
+                                    category.categoryId
+                                )
+                            }
+                        >
+
+                            {category.title}
+
+                        </div>
+
+
+
+                        {/* EXPAND BUTTON */}
+
+                        {hasChildren && (
+
+                            <button
+                                onClick={(e) => {
+
+                                    e.stopPropagation();
+
+                                    toggleCategory(
+                                        category.categoryId
+                                    );
+                                }}
+                                className="ml-3 w-7 h-7 rounded-full hover:bg-white/20 flex items-center justify-center"
+                            >
+
+                                {isExpanded
+
+                                    ? "−"
+
+                                    : "+"}
+
+                            </button>
+                        )}
+
+                    </div>
+
+
+
+                    {/* CHILDREN */}
+
+                    {hasChildren &&
+                        isExpanded && (
+
+                            <div>
+
+                                {renderCategoryTree(
+
+                                    category.children,
+
+                                    level + 1
+                                )}
+
+                            </div>
+                        )}
+
+                </div>
+            );
         });
     };
 
-    // 🔥 Get valid category names
-    const getCategoryTitles = (category) => {
-        if (!category) return null;
 
-        // parent → return children
-        if (category.children) {
-            return category.children.map((child) => child.title);
-        }
 
-        // child → return itself
-        return [category.title];
-    };
+    // =====================================================
+    // LOADING
+    // =====================================================
 
-    // 🔥 Filter products
-    const filteredProducts = selectedCategory
-        ? products.filter((p) => {
-            const validCategories = getCategoryTitles(selectedCategory);
-            return validCategories.includes(p.category?.name);
-        })
-        : products;
+    if (loading) {
+
+        return (
+
+            <div className="min-h-screen flex items-center justify-center">
+
+                <div className="text-2xl font-semibold">
+
+                    Loading...
+
+                </div>
+
+            </div>
+        );
+    }
+
+
+
+    // =====================================================
+    // UI
+    // =====================================================
 
     return (
-        <div className="min-h-screen flex bg-gray-100">
 
-            {/* 🔥 SIDEBAR */}
-            <div className="w-1/5 bg-white p-4 shadow">
+        <div className="min-h-screen bg-gray-100 flex">
 
-                <h2 className="text-lg font-bold mb-4">Categories</h2>
+            {/* ================================================= */}
+            {/* SIDEBAR */}
+            {/* ================================================= */}
 
-                {/* ALL */}
-                <div
-                    onClick={() => setSelectedCategory(null)}
-                    className={`p-2 cursor-pointer rounded mb-2 ${
-                        selectedCategory === null
-                            ? "bg-blue-500 text-white"
-                            : "hover:bg-gray-200"
-                    }`}
-                >
-                    All
+            <div className="w-[320px] bg-white border-r p-6 overflow-y-auto">
+
+                {/* HEADER */}
+
+                <div className="flex items-center justify-between mb-8">
+
+                    <h2 className="text-2xl font-bold">
+
+                        Categories
+
+                    </h2>
+
+
+
+                    <button
+                        onClick={async () => {
+
+                            try {
+
+                                setSelectedCategoryId(null);
+
+
+
+                                const data =
+                                    await getAllProducts();
+
+                                setProducts(data || []);
+
+                            } catch (err) {
+
+                                console.error(err);
+
+                                setProducts([]);
+                            }
+                        }}
+                        className="text-sm bg-gray-100 px-4 py-2 rounded-xl hover:bg-gray-200 transition"
+                    >
+
+                        All
+
+                    </button>
+
                 </div>
 
-                {/* 🔥 CATEGORY TREE */}
-                {categories.map((cat) => (
-                    <div key={cat.id}>
 
-                        {/* Parent */}
-                        <div
-                            className="flex justify-between items-center p-2 cursor-pointer hover:bg-gray-200 rounded"
-                            onClick={() => {
-                                toggleExpand(cat.id);
-                                setSelectedCategory(cat); // 🔥 parent selection
-                            }}
-                        >
-                            <span>{cat.title}</span>
-                            <span>{expanded[cat.id] ? "-" : "+"}</span>
+
+                {/* CATEGORY TREE */}
+
+                <div className="space-y-1">
+
+                    {renderCategoryTree(categories)}
+
+                </div>
+
+            </div>
+
+
+
+            {/* ================================================= */}
+            {/* PRODUCT SECTION */}
+            {/* ================================================= */}
+
+            <div className="flex-1 p-8">
+
+                {/* HEADER */}
+
+                <div className="mb-10">
+
+                    <h1 className="text-4xl font-bold">
+
+                        Product Catalogue 🛒
+
+                    </h1>
+
+
+
+                    <p className="text-gray-500 mt-2">
+
+                        Showing {products?.length || 0} products
+
+                    </p>
+
+                </div>
+
+
+
+                {/* EMPTY */}
+
+                {(products?.length || 0) === 0 && (
+
+                    <div className="bg-white rounded-3xl border p-16 text-center">
+
+                        <div className="text-7xl mb-6">
+
+                            📦
+
                         </div>
 
-                        {/* Children */}
-                        {expanded[cat.id] &&
-                            cat.children.map((child) => (
-                                <div
-                                    key={child.id}
-                                    onClick={() => setSelectedCategory(child)}
-                                    className={`ml-4 p-2 cursor-pointer rounded ${
-                                        selectedCategory?.id === child.id
-                                            ? "bg-blue-500 text-white"
-                                            : "hover:bg-gray-200"
-                                    }`}
-                                >
-                                    {child.title}
-                                </div>
-                            ))}
+                        <h2 className="text-3xl font-bold">
+
+                            No Products Found
+
+                        </h2>
+
+                        <p className="text-gray-500 mt-4">
+
+                            No products available here.
+
+                        </p>
+
                     </div>
-                ))}
-            </div>
+                )}
 
-            {/* 🔥 PRODUCT GRID */}
-            <div className="w-4/5 p-6">
 
-                <h1 className="text-2xl font-bold mb-6">
-                    {selectedCategory
-                        ? selectedCategory.title
-                        : "Product Catalogue 🛒"}
-                </h1>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {/* PRODUCTS */}
 
-                    {filteredProducts.map((product) => (
-                        <div
-                            key={product.id}
-                            onClick={() => navigate(`/products/${product.id}`)}
-                            className="bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-xl transition transform hover:-translate-y-1 cursor-pointer"
-                        >
-                            <img
-                                src={product.imageUrl}
-                                alt={product.title}
-                                className="w-full h-48 object-cover"
-                            />
+                {(products?.length || 0) > 0 && (
 
-                            <div className="p-4">
-                                <h2 className="text-lg font-semibold mb-1">
-                                    {product.title}
-                                </h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
 
-                                <p className="text-sm text-gray-500 mb-2">
-                                    {product.description}
-                                </p>
+                        {products?.map(product => (
 
-                                <p className="text-blue-600 font-bold text-lg">
-                                    ₹{product.basePrice}
-                                </p>
+                            <div
+                                key={product.productId}
+                                onClick={() =>
+                                    navigate(
+                                        `/products/${product.productId}`
+                                    )
+                                }
+                                className="bg-white rounded-3xl overflow-hidden border hover:shadow-xl transition duration-300 cursor-pointer"
+                            >
 
-                                <div className="flex justify-between items-center mt-2">
-                                    <span className="text-xs text-gray-400">
-                                        {product.category?.name}
-                                    </span>
+                                {/* IMAGE */}
 
-                                    <span
-                                        className={`px-2 py-1 text-xs rounded ${
-                                            product.status === "ACTIVE"
-                                                ? "bg-green-100 text-green-600"
-                                                : "bg-red-100 text-red-600"
-                                        }`}
-                                    >
-                                        {product.status}
-                                    </span>
+                                <div className="h-72 bg-gray-50 p-6 flex items-center justify-center overflow-hidden">
+
+                                    <img
+                                        src={product.imageUrl}
+                                        alt={product.title}
+                                        className="max-h-full max-w-full object-contain hover:scale-105 transition duration-300"
+                                    />
+
                                 </div>
-                            </div>
-                        </div>
-                    ))}
 
-                </div>
+
+
+                                {/* CONTENT */}
+
+                                <div className="p-5">
+
+                                    <h2 className="text-xl font-bold line-clamp-2 min-h-[56px]">
+
+                                        {product.title}
+
+                                    </h2>
+
+
+
+                                    <p className="text-sm text-gray-500 mt-2 line-clamp-2 min-h-[40px]">
+
+                                        {product.description}
+
+                                    </p>
+
+
+
+                                    <div className="mt-4">
+
+                                        <span className="text-2xl font-bold">
+
+                                            ₹ {product.basePrice}
+
+                                        </span>
+
+                                    </div>
+
+
+
+                                    <div className="flex items-center justify-between mt-5">
+
+                                        <span className="text-xs text-gray-400">
+
+                                            {product.categoryTitle}
+
+                                        </span>
+
+
+
+                                        <span
+                                            className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                                product.status === "ACTIVE"
+                                                    ? "bg-green-100 text-green-600"
+                                                    : "bg-red-100 text-red-600"
+                                            }`}
+                                        >
+
+                                            {product.status}
+
+                                        </span>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+                        ))}
+
+                    </div>
+                )}
+
             </div>
+
         </div>
     );
 }

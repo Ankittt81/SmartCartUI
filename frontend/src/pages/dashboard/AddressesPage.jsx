@@ -1,10 +1,25 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+import {
+    getAddresses,
+    addAddress,
+    updateAddress,
+    deleteAddress,
+    setDefaultAddress
+} from "../../services/addressService.js";
 
 function AddressesPage() {
+
+    // =====================================================
+    // 🔥 STATES
+    // =====================================================
 
     const [addresses, setAddresses] = useState([]);
 
     const [showModal, setShowModal] = useState(false);
+
+    const [editingId, setEditingId] = useState(null);
+    const [message, setMessage] = useState("");
 
     const [form, setForm] = useState({
         fullName: "",
@@ -20,6 +35,58 @@ function AddressesPage() {
         customLabel: ""
     });
 
+    useEffect(() => {
+
+        if (message) {
+
+            const timer = setTimeout(() => {
+                setMessage("");
+            }, 7000);
+
+            return () => clearTimeout(timer);
+        }
+
+    }, [message]);
+
+    // =====================================================
+    // 🔥 FETCH ADDRESSES
+    // =====================================================
+
+    const fetchAddresses = async () => {
+
+        try {
+
+            const res = await getAddresses();
+
+            setAddresses(res.data);
+
+        } catch (err) {
+
+            console.error(err);
+        }
+    };
+
+    useEffect(() => {
+
+        fetchAddresses();
+
+    }, []);
+
+    const handleSetDefault = async (id) => {
+
+        try {
+
+            await setDefaultAddress(id);
+
+            // refresh latest data
+            await fetchAddresses();
+
+        } catch (err) {
+
+            console.error(err);
+        }
+    };
+
     // =====================================================
     // 🔥 HANDLE INPUT
     // =====================================================
@@ -33,40 +100,115 @@ function AddressesPage() {
     };
 
     // =====================================================
-    // 🔥 SAVE ADDRESS
+    // 🔥 SAVE / UPDATE ADDRESS
     // =====================================================
 
-    const handleSaveAddress = (e) => {
-
+    const handleSaveAddress = async (e) => {
+        setError("");
         e.preventDefault();
 
-        const newAddress = {
-            id: Date.now(),
-            ...form
-        };
+        try {
 
-        setAddresses([...addresses, newAddress]);
+            if (editingId) {
 
-        // reset form
+                await updateAddress(
+                    editingId,
+                    form
+                );
+
+            } else {
+
+                await addAddress(form);
+            }
+
+            // refresh latest addresses
+            await fetchAddresses();
+
+            // reset edit state
+            setEditingId(null);
+
+            // reset form
+            setForm({
+                fullName: "",
+                mobile: "",
+                alternateMobile: "",
+                houseNo: "",
+                area: "",
+                landmark: "",
+                city: "",
+                state: "",
+                pincode: "",
+                addressType: "HOME",
+                customLabel: ""
+            });
+
+            // close modal
+            setShowModal(false);
+
+        } catch (err) {
+
+            console.error(err);
+
+            setMessage(
+                err.response?.data
+                || "Failed to save address"
+            );
+        }
+    };
+
+    // =====================================================
+    // 🔥 DELETE ADDRESS
+    // =====================================================
+
+    const handleDelete = async (id) => {
+
+        try {
+
+            await deleteAddress(id);
+
+            await fetchAddresses();
+
+        } catch (err) {
+
+            console.error(err);
+        }
+    };
+
+    // =====================================================
+    // 🔥 EDIT ADDRESS
+    // =====================================================
+
+    const handleEdit = (address) => {
+
+        setEditingId(address.id);
+
         setForm({
-            fullName: "",
-            mobile: "",
-            alternateMobile: "",
-            houseNo: "",
-            area: "",
-            landmark: "",
-            city: "",
-            state: "",
-            pincode: "",
-            addressType: "HOME",
-            customLabel: ""
+            fullName: address.fullName,
+            mobile: address.mobile,
+            alternateMobile: address.alternateMobile,
+            houseNo: address.houseNo,
+            area: address.area,
+            landmark: address.landmark,
+            city: address.city,
+            state: address.state,
+            pincode: address.pincode,
+            addressType: address.addressType,
+            customLabel: address.customLabel || ""
         });
 
-        setShowModal(false);
+        setShowModal(true);
     };
 
     return (
         <div className="min-h-screen bg-gray-100 p-6">
+            {message && (
+
+                <div className="fixed top-5 right-5 z-[100] bg-red-500 text-white px-6 py-4 rounded-xl shadow-lg">
+
+                    {message}
+
+                </div>
+            )}
 
             <div className="max-w-6xl mx-auto">
 
@@ -89,13 +231,32 @@ function AddressesPage() {
                     </div>
 
                     <button
-                        onClick={() => setShowModal(true)}
+                        onClick={() => {
+                            setEditingId(null);
+
+                            setForm({
+                                fullName: "",
+                                mobile: "",
+                                alternateMobile: "",
+                                houseNo: "",
+                                area: "",
+                                landmark: "",
+                                city: "",
+                                state: "",
+                                pincode: "",
+                                addressType: "HOME",
+                                customLabel: ""
+                            });
+
+                            setShowModal(true);
+                        }}
                         className="bg-blue-500 text-white px-5 py-3 rounded-xl hover:bg-blue-600 transition"
                     >
                         + Add New Address
                     </button>
 
                 </div>
+
 
                 {/* ================================================= */}
                 {/* 🔥 EMPTY STATE */}
@@ -187,6 +348,53 @@ function AddressesPage() {
 
                                 </div>
 
+                                {/* ACTION BUTTONS */}
+                                <div className="flex items-center justify-between mt-5">
+
+                                    {/* LEFT SIDE */}
+                                    <div>
+
+                                        {address.isDefault ? (
+
+                                            <div className="bg-green-100 text-green-600 px-4 py-2 rounded-lg text-sm font-medium">
+
+                                                ✓ Default Address
+
+                                            </div>
+
+                                        ) : (
+
+                                            <button
+                                                onClick={() => handleSetDefault(address.id)}
+                                                className="px-4 py-2 border rounded-lg hover:bg-gray-100"
+                                            >
+                                                Set as Default
+                                            </button>
+                                        )}
+
+                                    </div>
+
+                                    {/* RIGHT SIDE */}
+                                    <div className="flex gap-3">
+
+                                        <button
+                                            onClick={() => handleEdit(address)}
+                                            className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
+                                        >
+                                            Edit
+                                        </button>
+
+                                        <button
+                                            onClick={() => handleDelete(address.id)}
+                                            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                                        >
+                                            Delete
+                                        </button>
+
+                                    </div>
+
+                                </div>
+
                             </div>
                         ))}
 
@@ -209,7 +417,11 @@ function AddressesPage() {
                         <div className="flex justify-between items-center mb-8">
 
                             <h2 className="text-3xl font-bold">
-                                Add New Address
+
+                                {editingId
+                                    ? "Edit Address"
+                                    : "Add New Address"}
+
                             </h2>
 
                             <button
@@ -224,9 +436,7 @@ function AddressesPage() {
                         {/* FORM */}
                         <form onSubmit={handleSaveAddress}>
 
-                            {/* ================================================= */}
-                            {/* 🔥 CONTACT DETAILS */}
-                            {/* ================================================= */}
+                            {/* CONTACT DETAILS */}
 
                             <h3 className="text-xl font-semibold mb-5">
                                 Contact Details
@@ -234,14 +444,11 @@ function AddressesPage() {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
 
-                                {/* FULL NAME */}
                                 <div>
 
                                     <label className="block mb-2 font-medium">
                                         Full Name
-                                        <span className="text-red-500 ml-1">
-                                            *
-                                        </span>
+                                        <span className="text-red-500 ml-1">*</span>
                                     </label>
 
                                     <input
@@ -249,21 +456,17 @@ function AddressesPage() {
                                         name="fullName"
                                         value={form.fullName}
                                         onChange={handleChange}
-                                        placeholder="Enter full name"
                                         className="w-full border p-3 rounded-xl"
                                         required
                                     />
 
                                 </div>
 
-                                {/* MOBILE */}
                                 <div>
 
                                     <label className="block mb-2 font-medium">
                                         Mobile Number
-                                        <span className="text-red-500 ml-1">
-                                            *
-                                        </span>
+                                        <span className="text-red-500 ml-1">*</span>
                                     </label>
 
                                     <input
@@ -271,14 +474,12 @@ function AddressesPage() {
                                         name="mobile"
                                         value={form.mobile}
                                         onChange={handleChange}
-                                        placeholder="Enter mobile number"
                                         className="w-full border p-3 rounded-xl"
                                         required
                                     />
 
                                 </div>
 
-                                {/* ALTERNATE MOBILE */}
                                 <div>
 
                                     <label className="block mb-2 font-medium">
@@ -290,7 +491,6 @@ function AddressesPage() {
                                         name="alternateMobile"
                                         value={form.alternateMobile}
                                         onChange={handleChange}
-                                        placeholder="Optional"
                                         className="w-full border p-3 rounded-xl"
                                     />
 
@@ -298,9 +498,7 @@ function AddressesPage() {
 
                             </div>
 
-                            {/* ================================================= */}
-                            {/* 🔥 ADDRESS DETAILS */}
-                            {/* ================================================= */}
+                            {/* ADDRESS DETAILS */}
 
                             <h3 className="text-xl font-semibold mb-5">
                                 Address Details
@@ -308,14 +506,11 @@ function AddressesPage() {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
 
-                                {/* HOUSE */}
                                 <div>
 
                                     <label className="block mb-2 font-medium">
                                         House No / Building Name
-                                        <span className="text-red-500 ml-1">
-                                            *
-                                        </span>
+                                        <span className="text-red-500 ml-1">*</span>
                                     </label>
 
                                     <input
@@ -323,21 +518,17 @@ function AddressesPage() {
                                         name="houseNo"
                                         value={form.houseNo}
                                         onChange={handleChange}
-                                        placeholder="Flat, House no, Building"
                                         className="w-full border p-3 rounded-xl"
                                         required
                                     />
 
                                 </div>
 
-                                {/* AREA */}
                                 <div>
 
                                     <label className="block mb-2 font-medium">
                                         Area / Road / Colony
-                                        <span className="text-red-500 ml-1">
-                                            *
-                                        </span>
+                                        <span className="text-red-500 ml-1">*</span>
                                     </label>
 
                                     <input
@@ -345,14 +536,12 @@ function AddressesPage() {
                                         name="area"
                                         value={form.area}
                                         onChange={handleChange}
-                                        placeholder="Area or locality"
                                         className="w-full border p-3 rounded-xl"
                                         required
                                     />
 
                                 </div>
 
-                                {/* LANDMARK */}
                                 <div>
 
                                     <label className="block mb-2 font-medium">
@@ -364,20 +553,16 @@ function AddressesPage() {
                                         name="landmark"
                                         value={form.landmark}
                                         onChange={handleChange}
-                                        placeholder="Nearby landmark"
                                         className="w-full border p-3 rounded-xl"
                                     />
 
                                 </div>
 
-                                {/* CITY */}
                                 <div>
 
                                     <label className="block mb-2 font-medium">
                                         City
-                                        <span className="text-red-500 ml-1">
-                                            *
-                                        </span>
+                                        <span className="text-red-500 ml-1">*</span>
                                     </label>
 
                                     <input
@@ -385,21 +570,17 @@ function AddressesPage() {
                                         name="city"
                                         value={form.city}
                                         onChange={handleChange}
-                                        placeholder="Enter city"
                                         className="w-full border p-3 rounded-xl"
                                         required
                                     />
 
                                 </div>
 
-                                {/* STATE */}
                                 <div>
 
                                     <label className="block mb-2 font-medium">
                                         State
-                                        <span className="text-red-500 ml-1">
-                                            *
-                                        </span>
+                                        <span className="text-red-500 ml-1">*</span>
                                     </label>
 
                                     <input
@@ -407,21 +588,17 @@ function AddressesPage() {
                                         name="state"
                                         value={form.state}
                                         onChange={handleChange}
-                                        placeholder="Enter state"
                                         className="w-full border p-3 rounded-xl"
                                         required
                                     />
 
                                 </div>
 
-                                {/* PINCODE */}
                                 <div>
 
                                     <label className="block mb-2 font-medium">
                                         Pincode
-                                        <span className="text-red-500 ml-1">
-                                            *
-                                        </span>
+                                        <span className="text-red-500 ml-1">*</span>
                                     </label>
 
                                     <input
@@ -429,7 +606,6 @@ function AddressesPage() {
                                         name="pincode"
                                         value={form.pincode}
                                         onChange={handleChange}
-                                        placeholder="Enter pincode"
                                         className="w-full border p-3 rounded-xl"
                                         required
                                     />
@@ -438,9 +614,7 @@ function AddressesPage() {
 
                             </div>
 
-                            {/* ================================================= */}
-                            {/* 🔥 ADDRESS TYPE */}
-                            {/* ================================================= */}
+                            {/* ADDRESS TYPE */}
 
                             <h3 className="text-xl font-semibold mb-5">
                                 Address Type
@@ -448,74 +622,42 @@ function AddressesPage() {
 
                             <div className="flex gap-4 mb-6 flex-wrap">
 
-                                {/* HOME */}
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setForm({
-                                            ...form,
-                                            addressType: "HOME",
-                                            customLabel: ""
-                                        })
-                                    }
-                                    className={`px-5 py-2 rounded-full border transition ${
-                                        form.addressType === "HOME"
-                                            ? "bg-blue-500 text-white"
-                                            : "bg-white"
-                                    }`}
-                                >
-                                    Home
-                                </button>
+                                {["HOME", "WORK", "OTHER"].map((type) => (
 
-                                {/* WORK */}
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setForm({
-                                            ...form,
-                                            addressType: "WORK",
-                                            customLabel: ""
-                                        })
-                                    }
-                                    className={`px-5 py-2 rounded-full border transition ${
-                                        form.addressType === "WORK"
-                                            ? "bg-blue-500 text-white"
-                                            : "bg-white"
-                                    }`}
-                                >
-                                    Work
-                                </button>
-
-                                {/* OTHER */}
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setForm({
-                                            ...form,
-                                            addressType: "OTHER"
-                                        })
-                                    }
-                                    className={`px-5 py-2 rounded-full border transition ${
-                                        form.addressType === "OTHER"
-                                            ? "bg-blue-500 text-white"
-                                            : "bg-white"
-                                    }`}
-                                >
-                                    Other
-                                </button>
+                                    <button
+                                        key={type}
+                                        type="button"
+                                        onClick={() =>
+                                            setForm({
+                                                ...form,
+                                                addressType: type,
+                                                customLabel:
+                                                    type !== "OTHER"
+                                                        ? ""
+                                                        : form.customLabel
+                                            })
+                                        }
+                                        className={`px-5 py-2 rounded-full border transition ${
+                                            form.addressType === type
+                                                ? "bg-blue-500 text-white"
+                                                : "bg-white"
+                                        }`}
+                                    >
+                                        {type}
+                                    </button>
+                                ))}
 
                             </div>
 
                             {/* CUSTOM LABEL */}
+
                             {form.addressType === "OTHER" && (
 
                                 <div className="mb-8">
 
                                     <label className="block mb-2 font-medium">
                                         Custom Address Label
-                                        <span className="text-red-500 ml-1">
-                                            *
-                                        </span>
+                                        <span className="text-red-500 ml-1">*</span>
                                     </label>
 
                                     <input
@@ -523,7 +665,6 @@ function AddressesPage() {
                                         name="customLabel"
                                         value={form.customLabel}
                                         onChange={handleChange}
-                                        placeholder="Example: Hostel, Parents, Farmhouse"
                                         className="w-full border p-3 rounded-xl"
                                         required
                                     />
@@ -531,25 +672,26 @@ function AddressesPage() {
                                 </div>
                             )}
 
-                            {/* ================================================= */}
-                            {/* 🔥 BUTTONS */}
-                            {/* ================================================= */}
+
+                            {/* BUTTONS */}
 
                             <div className="flex justify-end gap-4">
 
                                 <button
                                     type="button"
                                     onClick={() => setShowModal(false)}
-                                    className="px-6 py-3 border rounded-xl hover:bg-gray-100 transition"
+                                    className="px-6 py-3 border rounded-xl hover:bg-gray-100"
                                 >
                                     Cancel
                                 </button>
 
                                 <button
                                     type="submit"
-                                    className="px-8 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition"
+                                    className="px-8 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600"
                                 >
-                                    Save Address
+                                    {editingId
+                                        ? "Update Address"
+                                        : "Save Address"}
                                 </button>
 
                             </div>
